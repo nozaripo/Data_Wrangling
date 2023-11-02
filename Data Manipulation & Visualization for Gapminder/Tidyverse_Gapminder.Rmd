@@ -1,0 +1,429 @@
+--- 
+title: " Tidyverse for Gapminder Dataset"
+author: " Pouria"
+date:  " Last edited `r format(Sys.time(), '%d %B, %Y')` "
+output: 
+  pdf_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Description
+
+This is an introduction to the programming language R, focused on a powerful set of tools known as the Tidyverse. You'll learn the intertwined processes of data manipulation and visualization using the tools dplyr and ggplot2. You'll learn to manipulate data by filtering, sorting, and summarizing a real dataset of historical country data in order to answer exploratory questions. You'll then learn to turn this processed data into informative line plots, bar plots, histograms, and more with the ggplot2 package. You’ll get a taste of the value of exploratory data analysis and the power of Tidyverse tools. This is a suitable introduction for those who have no previous experience in R and are interested in performing data analysis.
+
+This document will include the following topics:
+
+1. Data wrangling
+2. Data visualization
+3. Grouping and summarizing
+4. Other useful types of visualization
+
+Analyses will usually involve a cycle between these steps of data transformation and visualization, as well as additional components of the data science workflow, like statistical modeling.
+
+Before anything, you to load the required libraries:
+
+```{r libraries, warning=FALSE}
+library(gapminder)
+library(dplyr)
+library(ggplot2)
+library(magrittr) # used for pipe operator
+```
+
+
+## Data wrangling
+
+In this chapter, you'll learn to do three things with a table: filter for particular observations, arrange the observations in a desired order, and mutate to add or change a column. You'll see how each of these steps allows you to answer questions about your data. You will also learn the essential skills of data visualization using the ggplot2 package, and you'll see how the dplyr and ggplot2 packages work closely together to create informative graphs.
+
+First, take a look at the `gapminder` data set
+
+```{r}
+gapminder
+summary(gapminder)
+```
+
+### filter()
+
+Using the verbs from package `dplyr`, we want to `filter()` particular observations from the year 1952.
+
+```{r}
+gapminder_1952 <- gapminder %>%
+  filter(year == 1952)
+
+gapminder_1952
+
+```
+
+Now, suppose you would want to find the observation that has the highest GDP per capita.
+
+```{r max GDP}
+# indexing with base R
+gapminder[gapminder$gdpPercap==max(gapminder$gdpPercap),]
+
+# subsetting with dplyr
+gapminder %>% 
+  arrange(desc(gdpPercap)) %>%
+  slice(1)
+```
+
+
+Now suppose we want to create a scatter plot of the data from year 1952 with life expectancy (`pop`) on y-axis and GDP per capita (`gdpPercap`) on the x-axis.
+
+```{r }
+ggplot(gapminder_1952, aes(x = gdpPercap , y = lifeExp)) +
+  geom_point()
+```
+
+Any interesting observation? Correct! higher income countries tend to have higher life expectancy. One problem, however, is that the plot for the most part is not quite readable because a lot of countries got crammed into the leftmost part of the x-axis. The reason for this is the distribution of GDP per capita (`gdpPercap`) spans several orders of magnitude. To visualize this use `histogram()`
+
+```{r}
+ggplot(gapminder_1952, aes(x = gdpPercap)) +
+  geom_histogram(bins = 100)
+```
+
+In such circumstances, it is helpful to work with a logarithmic scale.
+
+```{r}
+ggplot(gapminder_1952, aes(x = gdpPercap , y = lifeExp)) +
+  geom_point() +
+  scale_x_log10()
+```
+
+Let's test this for the variables population (`pop`) on x-axis and `gdpPercap` on y-axis.
+
+```{r}
+ggplot(gapminder_1952, aes(x = pop , y = gdpPercap)) +
+  geom_point(mapping=aes(alpha=continent)) +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+In the last plot, for `x = pop` and `y = gdpPercap`, suppose you would like to also visualize information about other variables in the same plot. Other interesting variables that could give us more insight into the data are life expectancy (`lifeExp`) and continent (`continent`). The variable `continent` is a categorical variable. Let's see how many levels it has
+
+```{r}
+levels(gapminder_1952$continent)
+
+# or using dplyr
+gapminder_1952 %>%
+  summarize(levels(continent))
+
+
+#factor(gapminder_1952$continent) %>% levels()
+
+# levels(c(1, 2, 3, 4, 5))
+# factor(c(1, 2, 3, 4, 5)) %>% levels()
+```
+Since the variable `continent` has a few number of levels we can visualize that on the data via either `shape` or `color`. Also, the life expectancy information could be visualized via using `lifeExp` to tune the `size` of the data points.
+```{r}
+ggplot(gapminder_1952, aes(x = pop , y = gdpPercap, shape=continent, size=lifeExp)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10()
+
+ggplot(gapminder_1952, aes(x = pop , y = gdpPercap, color=continent, size=lifeExp)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10()
+
+```
+
+Consider adding the layers `scale_color_manual(values=c('#999999', '#ex2', ...))` and `scale_shape_manual(values=c(3, 16, 17, ...))` to the plot for manual choice of colors and shapes, respectively.
+
+Below is shown other properties related to the panel and axes. To further your knowledge, visit [here](https://ggplot2.tidyverse.org/reference/theme.html).
+
+```{r}
+ggplot(gapminder_1952, aes(x = pop , y = gdpPercap, color=continent, size=lifeExp)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    x = "Population", 
+    y = "GDP Per Capita ($)", 
+    title = "GDP Per Capita vs. Population",
+    color = "Continents",
+    size = "Life Expectancy"
+    ) +
+  theme(
+    legend.position = "right",
+    axis.title.x = element_text(size = 12), 
+    axis.title.y = element_text(size = 12) )
+```
+
+Now, suppose instead of separating observations from different continents by different colors, we would want to divide the graph into **subplots based on a variable**, such as `continent`. We can achieve this by adding a `facet_wrap(~variable)` layer to the plot.
+
+```{r}
+ggplot(gapminder_1952, aes(x = pop , y = gdpPercap, size=lifeExp^.5)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  facet_wrap(~continent) +
+  labs(
+    x = "Population", 
+    y = "GDP Per Capita ($)", 
+    title = "GDP Per Capita vs. Population",
+    color = "Continents",
+    size = "Life Expectancy"
+    ) +
+  theme(
+    legend.position = "right",
+    axis.title.x = element_text(size = 12), 
+    axis.title.y = element_text(size = 12) )
+```
+
+As a practice, create a scatter plot of the `gapminder` data with GDP per capita on the x-axis and life expectancy on the y-axis, with continents represented by color and population by size divided by years in subplots. Put any of the axes on a log scale if need be.
+
+```{r practice scatter plot with facet}
+
+```
+
+
+
+As the last note on the verb `filter()`, we can use it for more than one condition. Say we would like to retrieve only the observations from China in the year 2002
+
+```{r}
+gapminder %>%
+  filter(country == "China", year == 2002)
+```
+
+### arrange()
+
+Now suppose we intend to sort observations in ascending or descending order of a particular variable, say `lifeExp`. We will use verb `arrange` from `dplyr` to achieve this.
+
+```{r}
+# arrange in ascending order
+gapminder %>%
+  arrange(lifeExp)
+```
+
+```{r}
+gapminder %>%
+  arrange(desc(lifeExp))
+```
+Sometimes we want to sort the observations from just a specific year, e.g., 1957 in descending order of population. For this, we would have to use multiple `dplyr` verbs, being `filter()` and `arrange()` here. We first use `filter()` to extract observations from just the year 1957, and then use `arrange()` to sort those observations in descending order of population (`pop`).
+
+```{r}
+gapminder %>%
+  filter(year == 1957) %>%
+  arrange(desc(year))
+```
+
+### mutate()
+Suppose we want a variable in `gapminder` data set measured in a different unit, e.g., life expectancy (`lifeExp`) to be measured in months instead of years. For this, one can use `mutate()` verb to change this column.
+
+This is a good time to practice writing equations. Say we would like to write this mutation in form of an equation. We will use LaTeX equation. For inline, you could use $lifeExp_{months} = lifeExp * 12$. Also, there are two ways to write this equation on a separate line:
+
+$$
+lifeExp_{months} = lifeExp * 12
+$$
+
+or
+
+\begin{equation}
+  lifeExp_{months} = lifeExp \times 12
+\end{equation}
+
+As a reference, `_` and `^` are used for subscript and superscript, respectively. 
+
+```{r}
+gapminder %>%
+  mutate(lifeExp = lifeExp*12)
+```
+However, a more efficient practice is to create a new column for the mutation as follows:
+
+```{r}
+gapminder %>%
+  mutate(lifeExpMonths = lifeExp*12)
+```
+
+Now, suppose you want to combine all the three verbs you have learned thus far, to sort and find the countries with the highest life expectancy in months, in the year 2007.
+
+
+```{r}
+gapminder %>%
+  filter(year == 2007) %>%
+  mutate(lifeExpMonths = lifeExp * 12) %>%
+  arrange(desc(lifeExpMonths))
+```
+
+## Grouping and summarizing
+So far you've been answering questions about individual country-year pairs, but you may be interested in aggregations of the data, such as the average life expectancy of all countries within each year. Here you'll learn to use the group by and summarize verbs, which collapse large datasets into manageable summaries.
+
+### summarize()
+Suppose you would want to summarize many observations into a single data point, e.g., the median life expectancy across all countries and years and save it into the new variable `medianLifeExp`
+
+```{r}
+gapminder %>%
+  summarize(medianLifeExp = median(lifeExp))
+```
+
+Now rather than summarizing the entire dataset, you may be interested to find the median life expectancy for only the particular year 1957.
+
+```{r}
+gapminder %>%
+  filter(year == 1957) %>%
+  summarize(medianLifeExp = median(lifeExp))
+```
+
+
+Summarize the data across all countries from year 1957 to median life expectancy and maximum GDP per capita.
+
+```{r}
+
+```
+
+### group_by()
+
+*What if we weren't interested just in the average for the year 2007, but for each of the years in the dataset?* You could rerun this code and change the year each time, but that's very tedious! 
+
+Instead, you can use the `group_by()` verb, which tells `dplyr` to summarize within groups instead of summarizing the entire dataset. Notice that this replaces doing the `filter()` for a specific year. 
+
+Now, suppose you would want to perform the same summary as in last code chunk within each year in the dataset rather than only for 1957.
+
+```{r}
+gapminder %>% 
+  group_by(year) %>%
+  summarize(medianLifeExp = median(lifeExp), 
+            maxGdpPercap = max(gdpPercap))
+```
+
+Alternatively, rather than comparing across time, you might be interested in comparing among continents for only the year 1957.
+
+```{r}
+gapminder %>% 
+  filter(year == 1957) %>%
+  group_by(continent) %>%
+  summarize(medianLifeExp = median(lifeExp),
+            maxGdpPercap = max(gdpPercap))
+```
+
+
+What if we were to find the median life expectancy and maximum GDP per capita within each combination of continent and year?
+
+```{r}
+
+```
+
+We would like to use the summarized data to create a scatter plot that shows the change of median life expectancy across all continents over time.
+
+```{r}
+by_year <- gapminder %>%
+  group_by(year) %>%
+  summarize(medianLifeExp = median(lifeExp))
+
+ggplot(by_year, aes(x=year, y=medianLifeExp)) +
+  geom_point() +
+  expand_limits(y = 0) + # to ensure the y-axis includes zero
+  labs(
+    title = "Median life expectancy across all continents over years"
+    )
+```
+
+One can alternatively use a line plot to visualize this trend over time.
+
+```{r}
+ggplot(by_year, aes(x = year, y = medianLifeExp)) + 
+  expand_limits(y = 0) +
+  geom_line() +
+  labs(
+    title = "Median life expectancy across all continents over years"
+    )
+```
+
+
+You have also learned to summarize after grouping by both year and continent, to see how the changes in median life expectancy have occurred separately within each continent. Since you now have data over time within each continent, you need a way to separate it in a visualization.
+
+```{r}
+# Summarize medianGdpPercap within each continent within each year: by_year_continent
+by_year_continent <- gapminder %>% 
+  group_by(continent, year) %>%
+  summarize(medianLifeExp = median(lifeExp))
+
+# Plot the change in medianGdpPercap in each continent over time
+ggplot(by_year_continent, aes(x = year, y = medianLifeExp, color = continent)) +
+  geom_point() + 
+  expand_limits(y = 0)
+
+```
+
+A rather pretty alternative to this is to have the data points connected, i.e., do a line plot.
+
+```{r}
+# Plot the change in medianGdpPercap in each continent over time
+ggplot(by_year_continent, aes(x = year, y = medianLifeExp, color = continent)) +
+  geom_point() + 
+  geom_line() +
+  expand_limits(y = 0)
+```
+
+Another way of exploring your data visually is to plot summarized data to compare continents w.r.t. median GDP per capita and median life expectancy withina single year, e.g., 2007.
+
+```{r}
+# Summarize the median GDP and median life expectancy per continent in 2007
+by_continent_2007 <- gapminder %>%
+    filter(year == 2007) %>%
+    group_by(continent) %>%
+    summarize(medianGdpPercap = median(gdpPercap),medianLifeExp = median(lifeExp))
+
+# Use a scatter plot to compare the median GDP and median life expectancy
+ggplot(by_continent_2007, aes(x = medianGdpPercap, y = medianLifeExp, color = continent)) + 
+    geom_point(size=5)
+```
+
+## Other types of visualization
+### bar plot
+You learned to calculate summarized values within groups. For example, the code below finds the median GDP per capita within each continent in the year 1952. That creates a table that looks like this, with one observation for each continent. 
+
+```{r}
+by_continent_1952 <- gapminder %>%
+    filter(year == 1952) %>%
+    group_by(continent) %>%
+    summarize(medianGdpPercap = median(gdpPercap))
+```
+
+Instead of just printing the table, you might want to represent the summary visually. For that, you would use a bar plot by adding the layer `geom_col()`. Notice that bar plot is great for when you have only one value per levels of a categorical variable, in this case the continent.
+
+```{r}
+ggplot(by_continent_1952, aes(x = continent, y = medianGdpPercap)) + 
+    geom_col()
+```
+
+What if we were to compare the GDP per capita between the two countries in the Oceania continent?
+
+```{r}
+
+```
+ 
+### 1-D distribution plot (histogram)
+A histogram is used to show the distribution of only one dimension of the data. You have used this before, where you examined the distribution of `gdpPercapita` to see if a log-scale transformation was needed for more readable visualization. Now, suppose you would want to get a sense of the distribution of the variable population (but in millions) across all countries in year 1952. A histogram is created with `geom_histogram()`.
+
+```{r}
+gapminder_1952 <- gapminder %>%
+  filter(year == 1952) %>%
+  mutate(pop_by_mil = pop / 1000000)
+
+# Create a histogram of population (pop_by_mil)
+ggplot(gapminder_1952, aes(x = pop_by_mil)) +
+  geom_histogram(bins = 50)
+```
+
+This histogram represents the distribution of the variable `pop_by_mil` across different countries in year 1952. Every bar represents a bin of population, and the height represents how many countries fall into that bin.
+
+### 2-D distribution plot (box plot)
+In previous section, `histogram` was used to show the distribution of population across all continents, without distinguishing them. But what if the goal is to compare the distribution of `pop_by_mil` among continents? The solution is to use box plot. One can create box plots with `geom_boxplot()` and two `aes`; `x` is the category, in this case `continent`, and `y` is the values of the target variable that one wants to compare, in this case `pop_by_mil`.
+
+```{r}
+# Create a box plot of population (pop_by_mil) among continents
+ggplot(gapminder_1952, aes(x = continent, y = pop_by_mil)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(
+    title = "Comparing population (in millions) among continents",
+    x = 'Continents',
+    y = 'Population in million'
+    )
+```
+
+
